@@ -1,8 +1,9 @@
 import os
+import json
+import shutil
 import numpy as np
 import pandas as pd
 from tqdm import tqdm
-
 from google.cloud import bigquery
 
 
@@ -21,6 +22,7 @@ def bq_to_df(q, client=None):
 
 class FocusedQuery:
     def __init__(self):
+        self.order_by = ""
         self.params = dict(
             __BASE_SEG__ = 'vnc_rc4',
 
@@ -65,9 +67,22 @@ class FocusedQuery:
 
     def set(self, **kwargs):
         for k, v in kwargs.items():
-            sql_name = f'__{k.upper()}__'
+            if k.startswith('__'):
+                sql_name = k
+            else:
+                sql_name = f'__{k.upper()}__'
+
             assert sql_name in self.params, f"{sql_name} not in known parameters"
             self.params[sql_name] = v
+
+            # The scale should be consistent with the RSG used.
+            # (Should we just assert that the caller always sets both at the same time?)
+            if k.lower() == 'rsg_table':
+                scale = int(np.log2(int(v[3:]) // 8))
+                self.params['__SCALE__'] = scale
+
+    def set_order_by(self, order_by):
+        self.order_by = order_by
 
     def sql(self):
         query_template_path = os.path.split(__file__)[0] + '/edge_query.sql'
@@ -80,23 +95,47 @@ class FocusedQuery:
         for k, v in self.params.items():
             q = q.replace(k, str(v))
 
+        q += f"\norder by {self.order_by}\n"
+
         return q
 
     def query(self, client):
         return bq_to_df(self.sql(), client)
 
+    def query_and_export(self, dirname, client, overwrite=False):
+        if os.path.exists(dirname) and not overwrite:
+            raise RuntimeError("Directory '{dirname}' already exists and you didn't set overwrite=True")
+
+        df = self.query(client)
+        print(f"Got {len(df)} rows, starting with:")
+        print(df.head())
+
+        if os.path.exists(dirname):
+            shutil.rmtree(dirname)
+
+        os.makedirs(dirname)
+        with open(f'{dirname}/params.json', 'w') as f:
+            json.dump(self.params, f, indent=2)
+        with open(f'{dirname}/query.sql', 'w') as f:
+            f.write(self.sql())
+
+        df.to_csv(f'{dirname}/results.csv', header=True, index=False)
+
 
 if __name__ == "__main__":
     client = bigquery.Client('janelia-flyem')
-    fq = FocusedQuery()
-    fq.set(rsg_table='rsg32',
-           edge_type='intra-body',
-           min_sv_size_both=1e6,
-           min_body_size_either=1e9,
-           max_two_way_score=0.1
-           )
 
-    print(fq.sql())
+    for rsg in ['rsg32', 'rsg16', 'rsg8']:
+        print(f"Running query for {rsg}")
+        fq = FocusedQuery()
+        fq.set(rsg_table=rsg,
+               edge_type='intra-body',
+               min_sv_size_both=1e6,
+               min_body_size_either=1e9)
+
+        fq.set_order_by("least(sv_tbars_a, sv_tbars_b) desc, body_a asc, body_b asc, sv_a asc, sv_b asc")
+        #print(fq.sql())
+        fq.query_and_export(f"{rsg}-intrabody", client)
 
     # df = fq.query(client)
 

@@ -98,65 +98,65 @@ with score_table as (
     ("__EDGE_TYPE__" = "intra-body"
     and (rsg.label_a != rsg.label_b) -- Apparently RSG can contain self-edges. Drop them.
     and ifnull(left_agglo.id_b, cast(rsg.label_a as int64)) = ifnull(right_agglo.id_b, cast(rsg.label_b as int64)))
-)
-select
-  sv_a, sv_b,
-  body_a, body_b,
-  score, score_ab, score_ba,
+),
+filtered as (
+  select
+    sv_a, sv_b,
+    body_a, body_b,
+    score, score_ab, score_ba,
 
-  mask_a.max_mask as sv_mask_a,
-  mask_a.max_mask as sv_mask_b,
+    mask_a.max_mask as sv_mask_a,
+    mask_a.max_mask as sv_mask_b,
 
-  btbars_a.tbar_count as body_tbars_a,
-  btbars_b.tbar_count as body_tbars_b,
+    btbars_a.tbar_count as body_tbars_a,
+    btbars_b.tbar_count as body_tbars_b,
 
-  stbars_a.tbar_count as sv_tbars_a,
-  stbars_b.tbar_count as sv_tbars_b,
+    stbars_a.tbar_count as sv_tbars_a,
+    stbars_b.tbar_count as sv_tbars_b,
 
-  xa, ya, za,
-  xb, yb, zb,
-  x_nearby, y_nearby, z_nearby,
+    xa, ya, za,
+    xb, yb, zb,
+    x_nearby, y_nearby, z_nearby,
 
-  body_sizes_a.body_size as body_size_a,
-  body_sizes_b.body_size as body_size_b,
+    body_sizes_a.body_size as body_size_a,
+    body_sizes_b.body_size as body_size_b,
 
-  body_sizes_a.box_x0 as body_box_x0_a,
-  body_sizes_a.box_y0 as body_box_y0_a,
-  body_sizes_a.box_z0 as body_box_z0_a,
+    body_sizes_a.box_x0 as body_box_x0_a,
+    body_sizes_a.box_y0 as body_box_y0_a,
+    body_sizes_a.box_z0 as body_box_z0_a,
 
-  body_sizes_a.box_x1 as body_box_x1_a,
-  body_sizes_a.box_y1 as body_box_y1_a,
-  body_sizes_a.box_z1 as body_box_z1_a,
+    body_sizes_a.box_x1 as body_box_x1_a,
+    body_sizes_a.box_y1 as body_box_y1_a,
+    body_sizes_a.box_z1 as body_box_z1_a,
 
-  body_sizes_b.box_x0 as body_box_x0_b,
-  body_sizes_b.box_y0 as body_box_y0_b,
-  body_sizes_b.box_z0 as body_box_z0_b,
+    body_sizes_b.box_x0 as body_box_x0_b,
+    body_sizes_b.box_y0 as body_box_y0_b,
+    body_sizes_b.box_z0 as body_box_z0_b,
 
-  body_sizes_b.box_x1 as body_box_x1_b,
-  body_sizes_b.box_y1 as body_box_y1_b,
-  body_sizes_b.box_z1 as body_box_z1_b,
+    body_sizes_b.box_x1 as body_box_x1_b,
+    body_sizes_b.box_y1 as body_box_y1_b,
+    body_sizes_b.box_z1 as body_box_z1_b,
 
-  objinfo_a.num_voxels as sv_size_a,
-  objinfo_b.num_voxels as sv_size_b,
+    objinfo_a.num_voxels as sv_size_a,
+    objinfo_b.num_voxels as sv_size_b,
 
-  objinfo_a.bbox.start.x as sv_box_x0_a,
-  objinfo_a.bbox.start.y as sv_box_y0_a,
-  objinfo_a.bbox.start.z as sv_box_z0_a,
+    objinfo_a.bbox.start.x as sv_box_x0_a,
+    objinfo_a.bbox.start.y as sv_box_y0_a,
+    objinfo_a.bbox.start.z as sv_box_z0_a,
 
-  (objinfo_a.bbox.start.x + objinfo_a.bbox.size.x) as sv_box_x1_a,
-  (objinfo_a.bbox.start.y + objinfo_a.bbox.size.y) as sv_box_y1_a,
-  (objinfo_a.bbox.start.z + objinfo_a.bbox.size.z) as sv_box_z1_a,
+    (objinfo_a.bbox.start.x + objinfo_a.bbox.size.x) as sv_box_x1_a,
+    (objinfo_a.bbox.start.y + objinfo_a.bbox.size.y) as sv_box_y1_a,
+    (objinfo_a.bbox.start.z + objinfo_a.bbox.size.z) as sv_box_z1_a,
 
-  objinfo_b.bbox.start.x as sv_box_x0_b,
-  objinfo_b.bbox.start.y as sv_box_y0_b,
-  objinfo_b.bbox.start.z as sv_box_z0_b,
+    objinfo_b.bbox.start.x as sv_box_x0_b,
+    objinfo_b.bbox.start.y as sv_box_y0_b,
+    objinfo_b.bbox.start.z as sv_box_z0_b,
 
-  (objinfo_b.bbox.start.x + objinfo_b.bbox.size.x) as sv_box_x1_b,
-  (objinfo_b.bbox.start.y + objinfo_b.bbox.size.y) as sv_box_y1_b,
-  (objinfo_b.bbox.start.z + objinfo_b.bbox.size.z) as sv_box_z1_b,
+    (objinfo_b.bbox.start.x + objinfo_b.bbox.size.x) as sv_box_x1_b,
+    (objinfo_b.bbox.start.y + objinfo_b.bbox.size.y) as sv_box_y1_b,
+    (objinfo_b.bbox.start.z + objinfo_b.bbox.size.z) as sv_box_z1_b,
 
-from
-  score_table
+  from score_table
     left join __BASE_SEG__.__SV_OBJINFO_TABLE__ objinfo_a on (score_table.sv_a = objinfo_a.id)
     left join __BASE_SEG__.__SV_OBJINFO_TABLE__ objinfo_b on (score_table.sv_b = objinfo_b.id)
 
@@ -178,47 +178,62 @@ from
     left join __BASE_SEG__.__SV_EXCL_TABLE__ iso_a on (score_table.sv_a = iso_a.sv)
     left join __BASE_SEG__.__SV_EXCL_TABLE__ iso_b on (score_table.sv_b = iso_b.sv)
 
-where
-  -- Forbid excluded supervoxels from ever merging to anything
-  (iso_a.sv is null and iso_b.sv is null)
+  where
+    -- Forbid excluded supervoxels from ever merging to anything
+    (iso_a.sv is null and iso_b.sv is null)
 
-  -- Forbid merges amongst the mutually exclusive body set
-  and (sep_a.body is null or sep_b.body is null)
+    -- Forbid merges amongst the mutually exclusive body set
+    and (sep_a.body is null or sep_b.body is null)
 
-  -- Include only neuropil edges (class 5)
-  -- Note: These are supervoxel mask classes
-  -- TODO: Use body masks!
-  -- {1:oob 2:trachea 3:glia 4:cell bodies 5:neuropil}
-  and (mask_a.max_mask = 5 and mask_b.max_mask = 5)
+    -- Include only neuropil edges (class 5)
+    -- Note: These are supervoxel mask classes
+    -- TODO: Use body masks!
+    -- {1:oob 2:trachea 3:glia 4:cell bodies 5:neuropil}
+    and (mask_a.max_mask = 5 and mask_b.max_mask = 5)
 
-  -- Score
-  and (score_ab >= __MIN_TWO_WAY_SCORE__ and score_ba >= __MIN_TWO_WAY_SCORE__)
-  and (score_ab <= __MAX_TWO_WAY_SCORE__ and score_ba <= __MAX_TWO_WAY_SCORE__)
-  and (score_ab >= __MIN_ONE_WAY_SCORE__ or score_ba >= __MIN_ONE_WAY_SCORE__)
-  and (score_ab <= __MAX_ONE_WAY_SCORE__ or score_ba <= __MAX_ONE_WAY_SCORE__)
+    -- Score
+    and (score_ab >= __MIN_TWO_WAY_SCORE__ and score_ba >= __MIN_TWO_WAY_SCORE__)
+    and (score_ab <= __MAX_TWO_WAY_SCORE__ and score_ba <= __MAX_TWO_WAY_SCORE__)
+    and (score_ab >= __MIN_ONE_WAY_SCORE__ or score_ba >= __MIN_ONE_WAY_SCORE__)
+    and (score_ab <= __MAX_ONE_WAY_SCORE__ or score_ba <= __MAX_ONE_WAY_SCORE__)
 
-  -- Body tbar count
-  and (btbars_a.tbar_count >= __MIN_BODY_TBARS_BOTH__  and btbars_b.tbar_count >= __MIN_BODY_TBARS_BOTH__)
-  and (btbars_a.tbar_count <= __MAX_BODY_TBARS_BOTH__  and btbars_b.tbar_count <= __MAX_BODY_TBARS_BOTH__)
-  and (btbars_a.tbar_count >= __MIN_BODY_TBARS_EITHER__ or btbars_b.tbar_count >= __MIN_BODY_TBARS_EITHER__)
-  and (btbars_a.tbar_count <= __MAX_BODY_TBARS_EITHER__ or btbars_b.tbar_count <= __MAX_BODY_TBARS_EITHER__)
+    -- Body tbar count
+    and (btbars_a.tbar_count >= __MIN_BODY_TBARS_BOTH__  and btbars_b.tbar_count >= __MIN_BODY_TBARS_BOTH__)
+    and (btbars_a.tbar_count <= __MAX_BODY_TBARS_BOTH__  and btbars_b.tbar_count <= __MAX_BODY_TBARS_BOTH__)
+    and (btbars_a.tbar_count >= __MIN_BODY_TBARS_EITHER__ or btbars_b.tbar_count >= __MIN_BODY_TBARS_EITHER__)
+    and (btbars_a.tbar_count <= __MAX_BODY_TBARS_EITHER__ or btbars_b.tbar_count <= __MAX_BODY_TBARS_EITHER__)
 
-  -- Supervoxel tbar count
-  and (stbars_a.tbar_count >= __MIN_SV_TBARS_BOTH__  and stbars_b.tbar_count >= __MIN_SV_TBARS_BOTH__)
-  and (stbars_a.tbar_count <= __MAX_SV_TBARS_BOTH__  and stbars_b.tbar_count <= __MAX_SV_TBARS_BOTH__)
-  and (stbars_a.tbar_count >= __MIN_SV_TBARS_EITHER__ or stbars_b.tbar_count >= __MIN_SV_TBARS_EITHER__)
-  and (stbars_a.tbar_count <= __MAX_SV_TBARS_EITHER__ or stbars_b.tbar_count <= __MAX_SV_TBARS_EITHER__)
+    -- Supervoxel tbar count
+    and (stbars_a.tbar_count >= __MIN_SV_TBARS_BOTH__  and stbars_b.tbar_count >= __MIN_SV_TBARS_BOTH__)
+    and (stbars_a.tbar_count <= __MAX_SV_TBARS_BOTH__  and stbars_b.tbar_count <= __MAX_SV_TBARS_BOTH__)
+    and (stbars_a.tbar_count >= __MIN_SV_TBARS_EITHER__ or stbars_b.tbar_count >= __MIN_SV_TBARS_EITHER__)
+    and (stbars_a.tbar_count <= __MAX_SV_TBARS_EITHER__ or stbars_b.tbar_count <= __MAX_SV_TBARS_EITHER__)
 
-  -- Body size
-  and (body_sizes_a.body_size >= __MIN_BODY_SIZE_BOTH__  and body_sizes_b.body_size >= __MIN_BODY_SIZE_BOTH__)
-  and (body_sizes_a.body_size <= __MAX_BODY_SIZE_BOTH__  and body_sizes_b.body_size <= __MAX_BODY_SIZE_BOTH__)
-  and (body_sizes_a.body_size >= __MIN_BODY_SIZE_EITHER__ or body_sizes_b.body_size >= __MIN_BODY_SIZE_EITHER__)
-  and (body_sizes_a.body_size <= __MAX_BODY_SIZE_EITHER__ or body_sizes_b.body_size <= __MAX_BODY_SIZE_EITHER__)
+    -- Body size
+    and (body_sizes_a.body_size >= __MIN_BODY_SIZE_BOTH__  and body_sizes_b.body_size >= __MIN_BODY_SIZE_BOTH__)
+    and (body_sizes_a.body_size <= __MAX_BODY_SIZE_BOTH__  and body_sizes_b.body_size <= __MAX_BODY_SIZE_BOTH__)
+    and (body_sizes_a.body_size >= __MIN_BODY_SIZE_EITHER__ or body_sizes_b.body_size >= __MIN_BODY_SIZE_EITHER__)
+    and (body_sizes_a.body_size <= __MAX_BODY_SIZE_EITHER__ or body_sizes_b.body_size <= __MAX_BODY_SIZE_EITHER__)
 
-  -- Supervoxel size
-  and (objinfo_a.num_voxels >= __MIN_SV_SIZE_BOTH__  and objinfo_b.num_voxels >= __MIN_SV_SIZE_BOTH__)
-  and (objinfo_a.num_voxels <= __MAX_SV_SIZE_BOTH__  and objinfo_b.num_voxels <= __MAX_SV_SIZE_BOTH__)
-  and (objinfo_a.num_voxels >= __MIN_SV_SIZE_EITHER__ or objinfo_b.num_voxels >= __MIN_SV_SIZE_EITHER__)
-  and (objinfo_a.num_voxels <= __MAX_SV_SIZE_EITHER__ or objinfo_b.num_voxels <= __MAX_SV_SIZE_EITHER__)
-
-order by least(body_tbars_a, body_tbars_b) desc
+    -- Supervoxel size
+    and (objinfo_a.num_voxels >= __MIN_SV_SIZE_BOTH__  and objinfo_b.num_voxels >= __MIN_SV_SIZE_BOTH__)
+    and (objinfo_a.num_voxels <= __MAX_SV_SIZE_BOTH__  and objinfo_b.num_voxels <= __MAX_SV_SIZE_BOTH__)
+    and (objinfo_a.num_voxels >= __MIN_SV_SIZE_EITHER__ or objinfo_b.num_voxels >= __MIN_SV_SIZE_EITHER__)
+    and (objinfo_a.num_voxels <= __MAX_SV_SIZE_EITHER__ or objinfo_b.num_voxels <= __MAX_SV_SIZE_EITHER__)
+),
+enumerated_pairs as (
+  select *,
+    row_number()
+      over (
+        partition by filtered.sv_a, filtered.sv_b
+        order by filtered.score desc
+      ) as rownum
+  from filtered
+),
+unique_pairs as (
+  select *
+  from enumerated_pairs
+  where rownum = 1
+)
+select *
+from unique_pairs
