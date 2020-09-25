@@ -1,3 +1,7 @@
+-- The agglomeration RAG is computed at three different resolutions (32nm, 16nm, 8nm),
+-- and stored across three tables: rsg32, rsg16, rsg8
+-- We want to pull the "best" edges from the entire set,
+-- So start by concatenating all three (but only the columns we need).
 with full_rsg as (
     (
         select
@@ -59,6 +63,14 @@ with full_rsg as (
         from vnc_rc4.rsg8 rsg
     )
 ),
+
+-- We're only interested in the edges (supervoxel pairs) that span from one body to another.
+-- Use the agglomeration mapping table (sv -> body) to select edges whose supervoxels belong
+-- to different bodies.
+-- Notes:
+--   - In the agglo table, 'id_a' is the supervoxel and 'id_b' is the body
+--   - The agglo table omits identity-mapped rows, i.e. if the supervoxel ID happens to be
+--     the same as the body ID, it is left implicit, and omitted from the table.
 interbody_edges as (
     select
         ifnull(left_agglo.id_a, cast(rsg.label_a as int64)) as sv_a,
@@ -80,6 +92,8 @@ interbody_edges as (
         -- (Here if both sides are mapped to the same body, this won't return anything.)
         (ifnull(left_agglo.id_b, cast(rsg.label_a as int64)) != ifnull(right_agglo.id_b, cast(rsg.label_b as int64)))
 ),
+
+-- Join with various other tables to append columns for supervoxel/body sizes, tbar counts, etc.
 edges_with_info as (
     select
         *,
@@ -147,13 +161,27 @@ edges_with_info as (
         left join vnc_rc4.agglo_rsg32_16_sep_8_sep1e6_sv_tbar_counts stbars_a on (interbody_edges.sv_a = stbars_a.sv)
         left join vnc_rc4.agglo_rsg32_16_sep_8_sep1e6_sv_tbar_counts stbars_b on (interbody_edges.sv_b = stbars_b.sv)
 ),
+
+-- We're interested in the top-N "best" edges (score-wise) for each body,
+-- but each body ID can appear in both the body_a column AND the body_b column,
+-- so it isn't sufficient to group by just one of those columns.
+-- Start by treating body_a and body_b independently,
+-- ranking each edge relative to the other edges with matching body_a ID,
+-- and another ranking for the other edges with maching body_b ID.
 ranked_body_scores_per_col as (
     select
         *,
-        row_number() over (partition by body_a order by score desc ) as rank_a,
+        row_number() over (partition by body_a order by score desc) as rank_a,
         row_number() over (partition by body_b order by score desc) as rank_b
     from edges_with_info
 ),
+
+-- Select the top-N rows for each ranking, and concatenate them into a single table.
+-- Again, a particular body ID might be listed in body_a or body_b.
+-- This table selects the N best edges for that body from the A side and N best from
+-- the B side, and concatenates them all into a single table.
+-- Now the top N edges (at least) across both rows exist some where in the results,
+-- regardless of whether or not they came from side A or side B.
 best_scores_per_col as (
     (
         select *, body_a as ranked_body
@@ -167,16 +195,26 @@ best_scores_per_col as (
         where rank_b <= 10
     )
 ),
+
+-- Rank each of the selected edges for each body.
+-- This is the edges overall ranking for the body, relative to all
+-- other edges, regardless of the body's A/B position.
 ranked_body_scores as (
     select *, row_number() over (partition by ranked_body order by score desc) as rank,
     from best_scores_per_col
 ),
+-- Select the top-N-ranked edges for each body.
 best_body_scores as (
     select *
     from ranked_body_scores
     where rank <= 10
 ),
 
+-- Filter according to the other criteria we care about (size, tbar counts, etc.)
+-- Note:
+--   This condition logic in teh WHERE clause was generated from a template
+--   which is configured at a slightly higher level of abstraction.
+--   Hence, some conditions may be redundant in the raw SQL statements below.
 filtered as (
     select
         res,
@@ -259,6 +297,7 @@ filtered as (
         and (sv_size_a <= 100000000000.0 or sv_size_b <= 100000000000.0)
 )
 
+-- This 'order by' step is listed separately here for no particular reason...
 select *
 from filtered
 order by
